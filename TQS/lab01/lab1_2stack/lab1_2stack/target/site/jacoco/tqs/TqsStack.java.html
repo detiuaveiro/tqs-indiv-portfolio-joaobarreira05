@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TqsStack.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lab1_2stack</a> &gt; <a href="index.source.html" class="el_package">tqs</a> &gt; <span class="el_source">TqsStack.java</span></div><h1>TqsStack.java</h1><pre class="source lang-java linenums">package tqs;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NoSuchElementException;
+
+public class TqsStack&lt;T&gt; {
+    
+    private List&lt;T&gt; elements;
+    
+<span class="fc" id="L11">    public TqsStack() {</span>
+<span class="fc" id="L12">        elements = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L13">    }</span>
+    
+    public void push(T item) {
+<span class="fc" id="L16">        elements.add(item);</span>
+<span class="fc" id="L17">    }</span>
+    
+    public T pop() {
+<span class="fc bfc" id="L20" title="All 2 branches covered.">        if (isEmpty()) {</span>
+<span class="fc" id="L21">            throw new NoSuchElementException(&quot;Stack is empty&quot;);</span>
+        }
+<span class="fc" id="L23">        return elements.remove(elements.size() - 1);</span>
+    }
+    
+    public T peek() {
+<span class="fc bfc" id="L27" title="All 2 branches covered.">        if (isEmpty()) {</span>
+<span class="fc" id="L28">            throw new NoSuchElementException(&quot;Stack is empty&quot;);</span>
+        }
+<span class="fc" id="L30">        return elements.get(elements.size() - 1);</span>
+    }
+    
+    public int size() {
+<span class="fc" id="L34">        return elements.size();</span>
+    }
+    
+    public boolean isEmpty() {
+<span class="fc" id="L38">        return elements.isEmpty();</span>
+    }
+    
+    public T popTopN(int n) {
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (n &lt;= 0) {</span>
+<span class="fc" id="L43">            throw new IllegalArgumentException(&quot;n must be positive&quot;);</span>
+        }
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (n &gt; size()) {</span>
+<span class="fc" id="L46">            throw new IllegalArgumentException(&quot;n cannot be greater than stack size&quot;);</span>
+        }
+        
+        // Remove n-1 elements from the top
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        for (int i = 0; i &lt; n - 1; i++) {</span>
+<span class="fc" id="L51">            elements.remove(elements.size() - 1);</span>
+        }
+        
+        // Return the nth element (which is now at the top)
+<span class="fc" id="L55">        return elements.remove(elements.size() - 1);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

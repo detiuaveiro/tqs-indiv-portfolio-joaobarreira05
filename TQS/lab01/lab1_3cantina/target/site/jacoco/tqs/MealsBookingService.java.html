@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MealsBookingService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">lab1_3cantina</a> &gt; <a href="index.source.html" class="el_package">tqs</a> &gt; <span class="el_source">MealsBookingService.java</span></div><h1>MealsBookingService.java</h1><pre class="source lang-java linenums">package tqs;
+
+import java.util.*;
+
+public class MealsBookingService {
+    
+    private Map&lt;String, Booking&gt; bookings;
+    private Map&lt;String, Set&lt;String&gt;&gt; studentBookingsPerShift;
+    private Map&lt;String, Integer&gt; shiftCapacities;
+    private Map&lt;String, Integer&gt; currentBookingsPerShift;
+    
+<span class="fc" id="L12">    public MealsBookingService() {</span>
+<span class="fc" id="L13">        this.bookings = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L14">        this.studentBookingsPerShift = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L15">        this.shiftCapacities = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L16">        this.currentBookingsPerShift = new HashMap&lt;&gt;();</span>
+        
+        // Default capacities
+<span class="fc" id="L19">        shiftCapacities.put(&quot;LUNCH&quot;, 100);</span>
+<span class="fc" id="L20">        shiftCapacities.put(&quot;DINNER&quot;, 80);</span>
+<span class="fc" id="L21">    }</span>
+    
+    public String bookMeal(String studentId, String serviceShift) {
+<span class="fc" id="L24">        return bookMeal(studentId, serviceShift, null);</span>
+    }
+    
+    public String bookMeal(String studentId, String serviceShift, String dietaryRequirements) {
+<span class="pc bpc" id="L28" title="1 of 4 branches missed.">        if (studentId == null || studentId.trim().isEmpty()) {</span>
+<span class="fc" id="L29">            throw new IllegalArgumentException(&quot;Student ID cannot be null or empty&quot;);</span>
+        }
+        
+<span class="pc bpc" id="L32" title="2 of 4 branches missed.">        if (serviceShift == null || serviceShift.trim().isEmpty()) {</span>
+<span class="nc" id="L33">            throw new IllegalArgumentException(&quot;Service shift cannot be null or empty&quot;);</span>
+        }
+        
+        // Check if student already has booking for this shift
+<span class="fc" id="L37">        Set&lt;String&gt; studentsInShift = studentBookingsPerShift.get(serviceShift);</span>
+<span class="fc bfc" id="L38" title="All 4 branches covered.">        if (studentsInShift != null &amp;&amp; studentsInShift.contains(studentId)) {</span>
+<span class="fc" id="L39">            throw new IllegalStateException(&quot;Student already has a booking for this shift&quot;);</span>
+        }
+        
+        // Check capacity
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (getAvailableCapacity(serviceShift) &lt;= 0) {</span>
+<span class="fc" id="L44">            throw new IllegalStateException(&quot;No available capacity for this shift&quot;);</span>
+        }
+        
+<span class="fc" id="L47">        String token = generateToken();</span>
+<span class="fc" id="L48">        Booking booking = new Booking(token, studentId, serviceShift, BookingStatus.ACTIVE, dietaryRequirements);</span>
+        
+<span class="fc" id="L50">        bookings.put(token, booking);</span>
+        
+<span class="fc" id="L52">        studentBookingsPerShift</span>
+<span class="fc" id="L53">            .computeIfAbsent(serviceShift, k -&gt; new HashSet&lt;&gt;())</span>
+<span class="fc" id="L54">            .add(studentId);</span>
+            
+<span class="fc" id="L56">        currentBookingsPerShift.merge(serviceShift, 1, Integer::sum);</span>
+        
+<span class="fc" id="L58">        return token;</span>
+    }
+    
+    public Booking getBookingDetails(String token) {
+<span class="fc" id="L62">        Booking booking = bookings.get(token);</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (booking == null) {</span>
+<span class="fc" id="L64">            throw new IllegalArgumentException(&quot;Invalid token&quot;);</span>
+        }
+<span class="fc" id="L66">        return booking;</span>
+    }
+    
+    public boolean cancelBooking(String token) {
+<span class="fc" id="L70">        Booking booking = bookings.get(token);</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (booking == null) {</span>
+<span class="nc" id="L72">            throw new IllegalArgumentException(&quot;Invalid token&quot;);</span>
+        }
+        
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (booking.getStatus() != BookingStatus.ACTIVE) {</span>
+<span class="nc" id="L76">            return false;</span>
+        }
+        
+<span class="fc" id="L79">        booking.setStatus(BookingStatus.CANCELLED);</span>
+        
+<span class="fc" id="L81">        Set&lt;String&gt; studentsInShift = studentBookingsPerShift.get(booking.getServiceShift());</span>
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">        if (studentsInShift != null) {</span>
+<span class="fc" id="L83">            studentsInShift.remove(booking.getStudentId());</span>
+        }
+        
+<span class="fc" id="L86">        currentBookingsPerShift.merge(booking.getServiceShift(), -1, Integer::sum);</span>
+        
+<span class="fc" id="L88">        return true;</span>
+    }
+    
+    public boolean checkIn(String token) {
+<span class="fc" id="L92">        Booking booking = bookings.get(token);</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        if (booking == null) {</span>
+<span class="nc" id="L94">            throw new IllegalArgumentException(&quot;Invalid token&quot;);</span>
+        }
+        
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (booking.getStatus() != BookingStatus.ACTIVE) {</span>
+<span class="fc" id="L98">            return false;</span>
+        }
+        
+<span class="fc" id="L101">        booking.setStatus(BookingStatus.USED);</span>
+<span class="fc" id="L102">        return true;</span>
+    }
+    
+    public void setShiftCapacity(String serviceShift, int capacity) {
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        if (capacity &lt;= 0) {</span>
+<span class="nc" id="L107">            throw new IllegalArgumentException(&quot;Capacity must be positive&quot;);</span>
+        }
+<span class="fc" id="L109">        shiftCapacities.put(serviceShift, capacity);</span>
+<span class="fc" id="L110">    }</span>
+    
+    public int getAvailableCapacity(String serviceShift) {
+<span class="fc" id="L113">        int maxCapacity = shiftCapacities.getOrDefault(serviceShift, 0);</span>
+<span class="fc" id="L114">        int currentBookings = currentBookingsPerShift.getOrDefault(serviceShift, 0);</span>
+<span class="fc" id="L115">        return maxCapacity - currentBookings;</span>
+    }
+    
+    private String generateToken() {
+<span class="fc" id="L119">        return &quot;MEAL-&quot; + System.currentTimeMillis() + &quot;-&quot; + (int)(Math.random() * 1000);</span>
+    }
+}
+
+<span class="fc" id="L123">enum BookingStatus {</span>
+<span class="fc" id="L124">    ACTIVE, USED, CANCELLED</span>
+}
+
+class Booking {
+    private String token;
+    private String studentId;
+    private String serviceShift;
+    private BookingStatus status;
+    private String dietaryRequirements;
+    
+<span class="fc" id="L134">    public Booking(String token, String studentId, String serviceShift, BookingStatus status, String dietaryRequirements) {</span>
+<span class="fc" id="L135">        this.token = token;</span>
+<span class="fc" id="L136">        this.studentId = studentId;</span>
+<span class="fc" id="L137">        this.serviceShift = serviceShift;</span>
+<span class="fc" id="L138">        this.status = status;</span>
+<span class="fc" id="L139">        this.dietaryRequirements = dietaryRequirements;</span>
+<span class="fc" id="L140">    }</span>
+    
+<span class="nc" id="L142">    public String getToken() { return token; }</span>
+<span class="fc" id="L143">    public String getStudentId() { return studentId; }</span>
+<span class="fc" id="L144">    public String getServiceShift() { return serviceShift; }</span>
+<span class="fc" id="L145">    public BookingStatus getStatus() { return status; }</span>
+<span class="fc" id="L146">    public void setStatus(BookingStatus status) { this.status = status; }</span>
+<span class="fc" id="L147">    public String getDietaryRequirements() { return dietaryRequirements; }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

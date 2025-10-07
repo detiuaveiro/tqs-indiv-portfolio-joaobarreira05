@@ -1,5 +1,7 @@
 package ua;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import java.util.Optional;
 
 public class ProductFinderService {
@@ -11,13 +13,21 @@ public class ProductFinderService {
     }
     
     public Optional<Product> findProductDetails(Integer productId) {
-        // Skeleton implementation - will be implemented later with TDD
-        // For now, just compile but don't work
         String url = API_PRODUCTS + "/" + productId;
-        httpClient.doHttpGet(url);
+        String jsonResponse = httpClient.doHttpGet(url);
         
-        // TODO: Parse JSON response and return Product
-        // This is just a placeholder to make it compile
-        return Optional.empty();
+        // Se a resposta está vazia ou nula, retorna Optional vazio
+        if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
+            return Optional.empty();
+        }
+        
+        try {
+            Gson gson = new Gson();
+            Product product = gson.fromJson(jsonResponse, Product.class);
+            return Optional.ofNullable(product);
+        } catch (JsonSyntaxException e) {
+            // Se houver erro no parsing, retorna Optional vazio
+            return Optional.empty();
+        }
     }
 }

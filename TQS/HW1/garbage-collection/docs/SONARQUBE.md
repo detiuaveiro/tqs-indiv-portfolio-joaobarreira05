@@ -80,8 +80,3 @@ If you used the zip distribution, run `bin/macosx-universal-64/sonar.sh stop` in
 
 ---
 
-**Troubleshooting**
-
-- *Login fails:* Double-check that the token is active and was exported in the same shell session you are using to run Maven.
-- *Coverage missing:* Ensure `./mvnw verify` runs without errors so the JaCoCo XML report is produced before Sonar starts.
-- *Port conflicts:* Change the exposed port in the Docker command (`-p 9001:9000`) and export `SONAR_HOST_URL` accordingly.

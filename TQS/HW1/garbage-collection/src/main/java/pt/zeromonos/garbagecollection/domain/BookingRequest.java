@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -41,8 +43,12 @@ public class BookingRequest {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
-    
+
     private LocalDateTime lastUpdatedAt;
+
+    @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OrderBy("changedAt ASC")
+    private List<BookingStatusHistory> statusHistory = new ArrayList<>();
 
     // Construtor para facilitar a criação de novos bookings
     public BookingRequest(String itemDescription, String municipality, String fullAddress, LocalDate bookingDate, TimeSlot timeSlot) {
@@ -57,5 +63,15 @@ public class BookingRequest {
         this.status = BookingStatus.RECEIVED;
         this.createdAt = LocalDateTime.now();
         this.lastUpdatedAt = this.createdAt;
+        addHistoryEntry(this.status, "Pedido criado", this.createdAt);
+    }
+
+    public void addHistoryEntry(BookingStatus status, String note) {
+        addHistoryEntry(status, note, LocalDateTime.now());
+    }
+
+    public void addHistoryEntry(BookingStatus status, String note, LocalDateTime timestamp) {
+        BookingStatusHistory historyEntry = new BookingStatusHistory(this, status, timestamp, note);
+        statusHistory.add(historyEntry);
     }
 }

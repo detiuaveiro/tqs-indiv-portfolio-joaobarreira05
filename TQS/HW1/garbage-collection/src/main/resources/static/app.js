@@ -43,25 +43,18 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             body: JSON.stringify(data), // Converte o nosso objeto de dados para uma string JSON.
         })
-        .then(response => {
+        .then(async response => {
             if (!response.ok) {
-                // Se a resposta não for 2xx (e.g., 400 Bad Request), lança um erro.
-                throw new Error('Falha no agendamento. Verifique os dados (e.g., a data é no futuro?).');
+                throw new Error(await extractErrorMessage(response) || 'Falha no agendamento. Verifique os dados.');
             }
             return response.json();
         })
         .then(booking => {
-            // Mostra a mensagem de sucesso com o token.
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = `
-                <h3>Agendamento realizado com sucesso!</h3>
-                <p>Guarde o seu código de consulta: <strong>${booking.bookingToken}</strong></p>
-            `;
+            renderBookingCreationSuccess(resultDiv, booking);
             bookingForm.reset(); // Limpa o formulário.
         })
         .catch(error => {
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = `<p style="color: red;">${error.message}</p>`;
+            renderError(resultDiv, error.message);
         });
     });
 
@@ -73,28 +66,116 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!token) return;
 
         fetch(`/api/bookings/token/${token}`)
-            .then(response => {
+            .then(async response => {
                 if (response.status === 404) {
                     throw new Error('Código de agendamento não encontrado.');
                 }
                 if (!response.ok) {
-                    throw new Error('Ocorreu um erro ao consultar.');
+                    throw new Error(await extractErrorMessage(response) || 'Ocorreu um erro ao consultar.');
                 }
                 return response.json();
             })
             .then(booking => {
-                statusResultDiv.style.display = 'block';
-                statusResultDiv.innerHTML = `
-                    <h3>Detalhes do Agendamento</h3>
-                    <p><strong>Município:</strong> ${booking.municipality}</p>
-                    <p><strong>Descrição:</strong> ${booking.itemDescription}</p>
-                    <p><strong>Data:</strong> ${booking.bookingDate}</p>
-                    <p><strong>Estado:</strong> ${booking.status}</p>
-                `;
+                renderBookingDetails(statusResultDiv, booking, true);
             })
             .catch(error => {
-                statusResultDiv.style.display = 'block';
-                statusResultDiv.innerHTML = `<p style="color: red;">${error.message}</p>`;
+                renderError(statusResultDiv, error.message);
             });
     });
+
+    async function extractErrorMessage(response) {
+        try {
+            const data = await response.json();
+            if (data && typeof data === 'object' && data.message) {
+                return data.message;
+            }
+        } catch (err) {
+            try {
+                const text = await response.text();
+                if (text) {
+                    return text;
+                }
+            } catch (_) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    function renderError(container, message) {
+        container.style.display = 'block';
+        container.innerHTML = `<p style="color: red;">${message}</p>`;
+    }
+
+    function formatHistory(history = []) {
+        if (!Array.isArray(history) || history.length === 0) {
+            return '<p>Sem histórico disponível.</p>';
+        }
+
+        const items = history
+            .map(entry => {
+                const timestamp = new Date(entry.changedAt).toLocaleString('pt-PT');
+                const note = entry.note ? ` — ${entry.note}` : '';
+                return `<li><strong>${entry.status}</strong> em ${timestamp}${note}</li>`;
+            })
+            .join('');
+
+        return `<ul>${items}</ul>`;
+    }
+
+    function renderBookingCreationSuccess(container, booking) {
+        container.style.display = 'block';
+        container.innerHTML = `
+            <h3>Agendamento realizado com sucesso!</h3>
+            <p>Guarde o seu código de consulta: <strong>${booking.bookingToken}</strong></p>
+            <h4>Detalhes</h4>
+            <p><strong>Município:</strong> ${booking.municipality}</p>
+            <p><strong>Data:</strong> ${booking.bookingDate}</p>
+            <p><strong>Estado atual:</strong> ${booking.status}</p>
+            <h4>Linha temporal</h4>
+            ${formatHistory(booking.history)}
+        `;
+    }
+
+    function renderBookingDetails(container, booking, allowCancel = false) {
+        container.style.display = 'block';
+
+        const canCancel = allowCancel && booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED';
+
+        container.innerHTML = `
+            <h3>Detalhes do Agendamento</h3>
+            <p><strong>Código:</strong> ${booking.bookingToken}</p>
+            <p><strong>Município:</strong> ${booking.municipality}</p>
+            <p><strong>Descrição:</strong> ${booking.itemDescription || '—'}</p>
+            <p><strong>Morada:</strong> ${booking.fullAddress || '—'}</p>
+            <p><strong>Data:</strong> ${booking.bookingDate}</p>
+            <p><strong>Período:</strong> ${booking.timeSlot}</p>
+            <p><strong>Estado:</strong> ${booking.status}</p>
+            <h4>Linha temporal</h4>
+            ${formatHistory(booking.history)}
+            ${canCancel ? '<button type="button" id="cancelBookingBtn">Cancelar agendamento</button>' : ''}
+        `;
+
+        if (canCancel) {
+            const cancelButton = container.querySelector('#cancelBookingBtn');
+            cancelButton.addEventListener('click', async () => {
+                cancelButton.disabled = true;
+                cancelButton.textContent = 'A cancelar...';
+                try {
+                    const updated = await cancelBooking(booking.bookingToken);
+                    renderBookingDetails(container, updated, false);
+                } catch (error) {
+                    renderError(container, error.message || 'Não foi possível cancelar.');
+                }
+            });
+        }
+    }
+
+    async function cancelBooking(token) {
+        const response = await fetch(`/api/bookings/token/${token}`, { method: 'DELETE' });
+        if (!response.ok) {
+            throw new Error(await extractErrorMessage(response) || 'Não foi possível cancelar o agendamento.');
+        }
+        return response.json();
+    }
 });

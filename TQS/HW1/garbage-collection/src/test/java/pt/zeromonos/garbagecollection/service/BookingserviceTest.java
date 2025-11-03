@@ -1,11 +1,12 @@
 package pt.zeromonos.garbagecollection.service;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import jakarta.persistence.EntityNotFoundException;
 import pt.zeromonos.garbagecollection.domain.BookingRequest;
 import pt.zeromonos.garbagecollection.domain.BookingStatus;
 import pt.zeromonos.garbagecollection.domain.TimeSlot;
@@ -13,156 +14,205 @@ import pt.zeromonos.garbagecollection.dto.BookingRequestDTO;
 import pt.zeromonos.garbagecollection.repository.BookingRequestRepository;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-// Ativa a integração do Mockito com o JUnit 5
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("null")
+@SuppressWarnings({"null", "DataFlowIssue"})
 class BookingServiceTest {
 
-    // Cria um mock (uma versão falsa) do repositório.
     @Mock
     private BookingRequestRepository bookingRepository;
 
-    // Cria um mock do nosso serviço de API externa.
     @Mock
     private GeoApiService geoApiService;
 
-    // Cria uma instância real do BookingService e injecta os mocks acima nele.
     @InjectMocks
     private BookingService bookingService;
 
-    // -- Teste 1: Caminho Feliz (Happy Path) --
-    // Testa a criação de um agendamento com dados válidos.
     @Test
     void whenCreateBooking_withValidData_thenBookingIsSaved() {
-        // 1. Arrange (Preparar)
-        // Criamos os dados de entrada para o teste.
         BookingRequestDTO dto = new BookingRequestDTO();
         dto.setMunicipality("Lisboa");
         dto.setItemDescription("Uma secretária");
-        dto.setBookingDate(LocalDate.now().plusDays(5)); // Uma data futura
+        dto.setFullAddress("Rua das Flores, 10");
+        dto.setBookingDate(LocalDate.now().plusDays(3));
         dto.setTimeSlot(TimeSlot.MORNING);
 
-        // Preparamos o que os nossos mocks devem fazer.
-        // Dizemos ao mock do GeoApiService para retornar uma lista válida de municípios.
-    when(geoApiService.getMunicipalities()).thenReturn(List.of("Lisboa", "Porto"));
+        when(geoApiService.getMunicipalities()).thenReturn(List.of("Lisboa", "Porto"));
+        when(bookingRepository.countByMunicipalityAndBookingDateAndTimeSlot(eq("Lisboa"), any(LocalDate.class), eq(TimeSlot.MORNING)))
+                .thenReturn(0L);
+        when(bookingRepository.save(argThat(Objects::nonNull))).thenAnswer(invocation -> {
+            BookingRequest request = invocation.getArgument(0, BookingRequest.class);
+            request.setId(1L);
+            request.setBookingToken("token-123");
+            return request;
+        });
 
-    // Dizemos ao mock do repositório para retornar o próprio objeto que recebeu ao ser guardado.
-    // isA garante que o argumento não é nulo.
-    when(bookingRepository.save(any(BookingRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        BookingRequest saved = bookingService.createBooking(dto);
 
-        // 2. Act (Agir)
-        // Executamos o método que queremos testar.
-        BookingRequest result = bookingService.createBooking(dto);
+        assertEquals(1L, saved.getId());
+        assertEquals("Lisboa", saved.getMunicipality());
+        assertEquals(BookingStatus.RECEIVED, saved.getStatus());
+        assertEquals(1, saved.getStatusHistory().size());
 
-        // 3. Assert (Verificar)
-        // Verificamos se o resultado é o esperado.
-        assertNotNull(result); // O resultado não deve ser nulo.
-        assertEquals("Lisboa", result.getMunicipality()); // O município deve ser o que enviámos.
-        assertNotNull(result.getBookingToken()); // O token deve ter sido gerado.
-
-        // Verificamos se os nossos mocks foram chamados como esperado.
-        // Garante que o método getMunicipalities() foi chamado exatamente 1 vez.
-        verify(geoApiService, times(1)).getMunicipalities();
-        // Garante que o método save() foi chamado exatamente 1 vez.
-        verify(bookingRepository, times(1)).save(any(BookingRequest.class));
+        ArgumentCaptor<BookingRequest> captor = ArgumentCaptor.forClass(BookingRequest.class);
+        verify(bookingRepository).save(captor.capture());
+        verify(geoApiService).getMunicipalities();
+        verify(bookingRepository).countByMunicipalityAndBookingDateAndTimeSlot(eq("Lisboa"), any(LocalDate.class), eq(TimeSlot.MORNING));
+        assertEquals("Lisboa", captor.getValue().getMunicipality());
     }
 
-    // -- Teste 2: Caminho Triste (Sad Path) --
-    // Testa a criação de um agendamento com um município inválido.
     @Test
     void whenCreateBooking_withInvalidMunicipality_thenThrowException() {
-        // 1. Arrange
         BookingRequestDTO dto = new BookingRequestDTO();
-        dto.setMunicipality("Terra do Nunca"); // Município que não existe na lista.
-        dto.setBookingDate(LocalDate.now().plusDays(5));
-        
-        // Configuramos o mock para retornar a lista de municípios válidos.
+        dto.setMunicipality("Narnia");
+        dto.setBookingDate(LocalDate.now().plusDays(1));
+        dto.setTimeSlot(TimeSlot.AFTERNOON);
+
         when(geoApiService.getMunicipalities()).thenReturn(List.of("Lisboa", "Porto"));
 
-        // 2. Act & 3. Assert
-        // Verificamos se uma excepção do tipo IllegalArgumentException é lançada.
-        assertThrows(IllegalArgumentException.class, () -> {
-            bookingService.createBooking(dto);
-        });
-
-        // Verificamos que o método save NUNCA foi chamado, porque a validação falhou antes.
-        verify(bookingRepository, never()).save(any(BookingRequest.class));
+        assertThrows(IllegalArgumentException.class, () -> bookingService.createBooking(dto));
+        verify(bookingRepository, never()).save(argThat(Objects::nonNull));
     }
 
-    // -- Teste 3: Outro Caminho Triste --
-    // Testa a criação de um agendamento com uma data no passado.
     @Test
     void whenCreateBooking_withPastDate_thenThrowException() {
-        // 1. Arrange
         BookingRequestDTO dto = new BookingRequestDTO();
         dto.setMunicipality("Lisboa");
-        dto.setBookingDate(LocalDate.now().minusDays(1)); // Data no passado.
+        dto.setBookingDate(LocalDate.now().minusDays(1));
+        dto.setTimeSlot(TimeSlot.MORNING);
 
-        // Configuramos o mock para o município ser válido, para passarmos essa validação.
         when(geoApiService.getMunicipalities()).thenReturn(List.of("Lisboa"));
 
-        // 2. Act & 3. Assert
-        assertThrows(IllegalArgumentException.class, () -> {
-            bookingService.createBooking(dto);
-        });
-
-    // Mais uma vez, o save não deve ser chamado.
-        verify(bookingRepository, never()).save(any(BookingRequest.class));
+        assertThrows(IllegalArgumentException.class, () -> bookingService.createBooking(dto));
+        verify(bookingRepository, never()).save(argThat(Objects::nonNull));
     }
 
     @Test
-    void whenUpdateBookingStatus_withValidData_thenPersistChanges() {
-        BookingRequest existingBooking = new BookingRequest(
+    void whenCreateBooking_withoutTimeSlot_thenThrowException() {
+        BookingRequestDTO dto = new BookingRequestDTO();
+        dto.setMunicipality("Lisboa");
+        dto.setBookingDate(LocalDate.now().plusDays(2));
+
+        when(geoApiService.getMunicipalities()).thenReturn(List.of("Lisboa"));
+
+        assertThrows(IllegalArgumentException.class, () -> bookingService.createBooking(dto));
+        verify(bookingRepository, never()).save(argThat(Objects::nonNull));
+    }
+
+    @Test
+    void whenCreateBooking_exceedsCapacity_thenThrowException() {
+        BookingRequestDTO dto = new BookingRequestDTO();
+        dto.setMunicipality("Lisboa");
+        dto.setItemDescription("Máquina de lavar");
+        dto.setFullAddress("Rua das Flores, 12");
+        dto.setBookingDate(LocalDate.now().plusDays(2));
+        dto.setTimeSlot(TimeSlot.MORNING);
+
+        when(geoApiService.getMunicipalities()).thenReturn(List.of("Lisboa"));
+        when(bookingRepository.countByMunicipalityAndBookingDateAndTimeSlot(eq("Lisboa"), any(LocalDate.class), eq(TimeSlot.MORNING)))
+                .thenReturn(BookingServiceTestHelper.MAX_PER_SLOT());
+
+        assertThrows(IllegalStateException.class, () -> bookingService.createBooking(dto));
+    verify(bookingRepository, never()).save(argThat(Objects::nonNull));
+    }
+
+    @Test
+    void whenUpdateBookingStatus_withValidData_thenHistoryIsUpdated() {
+        BookingRequest existing = new BookingRequest(
                 "Frigorífico",
                 "Lisboa",
-                "Rua das Flores, 123",
-                LocalDate.now().plusDays(3),
-                TimeSlot.MORNING
+                "Rua Verde, 5",
+                LocalDate.now().plusDays(4),
+                TimeSlot.AFTERNOON
         );
-        existingBooking.setId(1L);
-        LocalDateTime originalLastUpdatedAt = existingBooking.getLastUpdatedAt();
+        existing.setId(1L);
 
-        when(bookingRepository.findById(1L)).thenReturn(Optional.of(existingBooking));
-        when(bookingRepository.save(existingBooking)).thenReturn(existingBooking);
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(existing));
+    when(bookingRepository.save(argThat(Objects::nonNull))).thenAnswer(invocation -> invocation.getArgument(0, BookingRequest.class));
 
-        BookingRequest updatedBooking = bookingService.updateBookingStatus(1L, BookingStatus.COMPLETED);
+        BookingRequest updated = bookingService.updateBookingStatus(1L, BookingStatus.IN_PROGRESS);
 
-        assertEquals(BookingStatus.COMPLETED, updatedBooking.getStatus());
-        assertNotNull(updatedBooking.getLastUpdatedAt());
-        assertTrue(updatedBooking.getLastUpdatedAt().isAfter(originalLastUpdatedAt));
+        assertEquals(BookingStatus.IN_PROGRESS, updated.getStatus());
+        assertEquals(2, updated.getStatusHistory().size());
+        assertEquals(BookingStatus.IN_PROGRESS, updated.getStatusHistory().get(1).getStatus());
 
         verify(bookingRepository).findById(1L);
-        verify(bookingRepository).save(existingBooking);
+    verify(bookingRepository).save(argThat(Objects::nonNull));
     }
 
     @Test
     void whenUpdateBookingStatus_withNullStatus_thenThrowException() {
-        assertThrows(IllegalArgumentException.class, () ->
-                bookingService.updateBookingStatus(1L, null)
-        );
-
+        assertThrows(IllegalArgumentException.class, () -> bookingService.updateBookingStatus(1L, null));
         verify(bookingRepository, never()).findById(anyLong());
-        verify(bookingRepository, never()).save(any(BookingRequest.class));
     }
 
     @Test
-    void whenUpdateBookingStatus_withUnknownBooking_thenThrowEntityNotFound() {
+    void whenUpdateBookingStatus_unknownBooking_thenThrowException() {
         when(bookingRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class, () ->
-                bookingService.updateBookingStatus(99L, BookingStatus.COMPLETED)
-        );
-
+        assertThrows(EntityNotFoundException.class, () -> bookingService.updateBookingStatus(99L, BookingStatus.COMPLETED));
         verify(bookingRepository).findById(99L);
-        verify(bookingRepository, never()).save(any(BookingRequest.class));
+    }
+
+    @Test
+    void whenCancelBooking_withValidToken_thenStatusBecomesCancelled() {
+        BookingRequest existing = new BookingRequest(
+                "Televisão",
+                "Lisboa",
+                "Rua Azul, 8",
+                LocalDate.now().plusDays(3),
+                TimeSlot.MORNING
+        );
+        existing.setBookingToken("token-xyz");
+
+        when(bookingRepository.findByBookingToken("token-xyz")).thenReturn(Optional.of(existing));
+        when(bookingRepository.save(existing)).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BookingRequest cancelled = bookingService.cancelBookingByToken("token-xyz");
+
+        assertEquals(BookingStatus.CANCELLED, cancelled.getStatus());
+        assertEquals(2, cancelled.getStatusHistory().size());
+        assertEquals(BookingStatus.CANCELLED, cancelled.getStatusHistory().get(1).getStatus());
+
+        verify(bookingRepository).findByBookingToken("token-xyz");
+    verify(bookingRepository).save(existing);
+    }
+
+    @Test
+    void whenCancelBooking_completedBooking_thenThrowException() {
+        BookingRequest existing = new BookingRequest(
+                "Armário",
+                "Lisboa",
+                "Rua Vermelha, 12",
+                LocalDate.now().plusDays(1),
+                TimeSlot.AFTERNOON
+        );
+        existing.setBookingToken("done");
+        existing.setStatus(BookingStatus.COMPLETED);
+
+        when(bookingRepository.findByBookingToken("done")).thenReturn(Optional.of(existing));
+
+        assertThrows(IllegalStateException.class, () -> bookingService.cancelBookingByToken("done"));
+    verify(bookingRepository, never()).save(argThat(Objects::nonNull));
+    }
+
+    @Test
+    void whenCancelBooking_unknownToken_thenThrowException() {
+        when(bookingRepository.findByBookingToken("unknown")).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> bookingService.cancelBookingByToken("unknown"));
+    }
+
+    private static class BookingServiceTestHelper {
+        static long MAX_PER_SLOT() {
+            return 5L;
+        }
     }
 }

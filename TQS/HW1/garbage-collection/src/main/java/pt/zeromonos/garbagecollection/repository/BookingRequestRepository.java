@@ -3,6 +3,7 @@ package pt.zeromonos.garbagecollection.repository;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import pt.zeromonos.garbagecollection.domain.BookingRequest;
+import pt.zeromonos.garbagecollection.domain.TimeSlot;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,4 +17,6 @@ public interface BookingRequestRepository extends JpaRepository<BookingRequest, 
 
     // "Encontra-me uma lista de BookingRequests através do seu campo 'municipality'"
     List<BookingRequest> findByMunicipality(String municipality);
+
+    long countByMunicipalityAndBookingDateAndTimeSlot(String municipality, java.time.LocalDate bookingDate, TimeSlot timeSlot);
 }

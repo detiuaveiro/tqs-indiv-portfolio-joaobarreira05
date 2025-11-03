@@ -89,9 +89,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const dateCell = document.createElement('td');
         dateCell.textContent = booking.bookingDate || '—';
 
-        const statusCell = document.createElement('td');
-        statusCell.classList.add('status-cell');
-        statusCell.textContent = formatStatus(booking.status);
+    const statusCell = document.createElement('td');
+    statusCell.classList.add('status-cell');
+    statusCell.textContent = formatStatus(booking.status);
+
+    const historyCell = document.createElement('td');
+    historyCell.innerHTML = buildHistoryList(booking.history);
 
         const actionsCell = document.createElement('td');
         actionsCell.classList.add('actions-cell');
@@ -113,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateButton.addEventListener('click', async () => {
             const newStatus = statusSelect.value;
-            await handleStatusUpdate(row, booking.id, newStatus, statusCell, statusSelect, updateButton);
+            await handleStatusUpdate(row, booking.id, newStatus, statusCell, historyCell, statusSelect, updateButton);
         });
 
         actionsCell.appendChild(statusSelect);
@@ -124,12 +127,13 @@ document.addEventListener('DOMContentLoaded', () => {
         row.appendChild(addressCell);
         row.appendChild(dateCell);
         row.appendChild(statusCell);
+        row.appendChild(historyCell);
         row.appendChild(actionsCell);
 
         return row;
     }
 
-    async function handleStatusUpdate(row, bookingId, newStatus, statusCell, statusSelect, updateButton) {
+    async function handleStatusUpdate(row, bookingId, newStatus, statusCell, historyCell, statusSelect, updateButton) {
         if (!bookingId) {
             alert('Identificador do agendamento inválido.');
             return;
@@ -143,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const updatedBooking = await updateBookingStatus(bookingId, newStatus);
             statusCell.textContent = formatStatus(updatedBooking.status);
             statusSelect.value = updatedBooking.status;
+            historyCell.innerHTML = buildHistoryList(updatedBooking.history);
 
             row.classList.remove('status-updated');
             // Força reflow para reiniciar a animação
@@ -187,5 +192,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         return response.json();
+    }
+
+    function buildHistoryList(history = []) {
+        if (!Array.isArray(history) || history.length === 0) {
+            return '<em>Sem histórico</em>';
+        }
+
+        const items = history.map(entry => {
+            const timestamp = new Date(entry.changedAt).toLocaleString('pt-PT');
+            const label = formatStatus(entry.status);
+            const note = entry.note ? ` — ${entry.note}` : '';
+            return `<li><strong>${label}</strong> (${timestamp})${note}</li>`;
+        }).join('');
+
+        return `<ul>${items}</ul>`;
     }
 });

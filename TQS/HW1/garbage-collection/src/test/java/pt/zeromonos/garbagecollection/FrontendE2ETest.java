@@ -56,32 +56,49 @@ public class FrontendE2ETest {
 
     @Test
     void whenCitizenFillsFormAndSubmits_thenSeesSuccess() {
-        // 1. Arrange: Navegar para a página
-        page.navigate("http://localhost:" + port + "/");
+        submitBookingForm();
 
-        // 2. Act: Preencher o formulário
-        
-        // Espera que a opção "Lisboa" apareça e seleciona-a.
-        page.selectOption("#municipality", "Lisboa");
-
-        // Preenche os outros campos
-        page.getByLabel("Descrição dos Itens:").fill("Um frigorífico velho");
-        page.getByLabel("Morada Completa:").fill("Rua do Teste E2E, 123");
-        
-        String futureDate = LocalDate.now().plusDays(5).format(DateTimeFormatter.ISO_LOCAL_DATE);
-        page.getByLabel("Data de Recolha:").fill(futureDate);
-        
-        page.selectOption("#timeSlot", "MORNING");
-        
-        // Clica no botão de submissão
-        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Agendar")).click();
-        
-        // 3. Assert: Verificar o resultado
         Locator resultDiv = page.locator("#result");
-        
-        // Verifica se a mensagem de sucesso e o token aparecem.
         assertThat(resultDiv).isVisible();
         assertThat(resultDiv).containsText("Agendamento realizado com sucesso!");
         assertThat(resultDiv).containsText("Guarde o seu código de consulta:");
+    }
+
+    @Test
+    void whenCitizenCancelsBooking_thenStatusIsCancelled() {
+        String bookingToken = submitBookingForm();
+
+        Locator statusResult = page.locator("#statusResult");
+
+        page.fill("#bookingToken", bookingToken);
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Consultar")).click();
+
+        assertThat(statusResult).isVisible();
+        assertThat(statusResult).containsText("Detalhes do Agendamento");
+        assertThat(statusResult).containsText(bookingToken);
+
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Cancelar agendamento")).click();
+
+        assertThat(statusResult).containsText("CANCELLED");
+        assertThat(statusResult).not().containsText("Cancelar agendamento");
+    }
+
+    private String submitBookingForm() {
+        page.navigate("http://localhost:" + port + "/");
+
+        page.selectOption("#municipality", "Lisboa");
+        page.getByLabel("Descrição dos Itens:").fill("Um frigorífico velho");
+        page.getByLabel("Morada Completa:").fill("Rua do Teste E2E, 123");
+
+        String futureDate = LocalDate.now().plusDays(5).format(DateTimeFormatter.ISO_LOCAL_DATE);
+        page.getByLabel("Data de Recolha:").fill(futureDate);
+        page.selectOption("#timeSlot", "MORNING");
+
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Agendar")).click();
+
+        Locator resultDiv = page.locator("#result");
+        assertThat(resultDiv).isVisible();
+
+        return resultDiv.locator("strong").first().textContent().trim();
     }
 }

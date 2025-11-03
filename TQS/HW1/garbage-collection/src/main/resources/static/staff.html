@@ -11,6 +11,14 @@
         table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f2f2f2; }
+        .actions-cell { display: flex; flex-wrap: wrap; gap: 0.5em; align-items: center; }
+        .actions-cell select { flex: 1; min-width: 140px; }
+        .actions-cell button { padding: 0.4em 0.8em; cursor: pointer; }
+        .status-updated { animation: highlight 1.6s ease-out; }
+        @keyframes highlight {
+            0% { background-color: #e0f7e9; }
+            100% { background-color: transparent; }
+        }
     </style>
 </head>
 <body>
@@ -33,6 +41,7 @@
                     <th>Morada</th>
                     <th>Data</th>
                     <th>Estado</th>
+                    <th>Atualizar Estado</th>
                 </tr>
             </thead>
             <tbody id="bookingsTbody">

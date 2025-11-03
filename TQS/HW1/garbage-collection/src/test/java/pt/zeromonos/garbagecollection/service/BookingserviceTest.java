@@ -1,25 +1,30 @@
 package pt.zeromonos.garbagecollection.service;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import jakarta.persistence.EntityNotFoundException;
 import pt.zeromonos.garbagecollection.domain.BookingRequest;
+import pt.zeromonos.garbagecollection.domain.BookingStatus;
 import pt.zeromonos.garbagecollection.domain.TimeSlot;
 import pt.zeromonos.garbagecollection.dto.BookingRequestDTO;
 import pt.zeromonos.garbagecollection.repository.BookingRequestRepository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 // Ativa a integração do Mockito com o JUnit 5
 @ExtendWith(MockitoExtension.class)
+@SuppressWarnings("null")
 class BookingServiceTest {
 
     // Cria um mock (uma versão falsa) do repositório.
@@ -48,11 +53,11 @@ class BookingServiceTest {
 
         // Preparamos o que os nossos mocks devem fazer.
         // Dizemos ao mock do GeoApiService para retornar uma lista válida de municípios.
-        when(geoApiService.getMunicipalities()).thenReturn(List.of("Lisboa", "Porto"));
-        
-        // Dizemos ao mock do repositório para retornar o próprio objeto que recebeu ao ser guardado.
-        // any() significa que não nos importamos qual o objeto BookingRequest exato, qualquer um serve.
-        when(bookingRepository.save(any(BookingRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(geoApiService.getMunicipalities()).thenReturn(List.of("Lisboa", "Porto"));
+
+    // Dizemos ao mock do repositório para retornar o próprio objeto que recebeu ao ser guardado.
+    // isA garante que o argumento não é nulo.
+    when(bookingRepository.save(any(BookingRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // 2. Act (Agir)
         // Executamos o método que queremos testar.
@@ -110,7 +115,54 @@ class BookingServiceTest {
             bookingService.createBooking(dto);
         });
 
-        // Mais uma vez, o save não deve ser chamado.
+    // Mais uma vez, o save não deve ser chamado.
+        verify(bookingRepository, never()).save(any(BookingRequest.class));
+    }
+
+    @Test
+    void whenUpdateBookingStatus_withValidData_thenPersistChanges() {
+        BookingRequest existingBooking = new BookingRequest(
+                "Frigorífico",
+                "Lisboa",
+                "Rua das Flores, 123",
+                LocalDate.now().plusDays(3),
+                TimeSlot.MORNING
+        );
+        existingBooking.setId(1L);
+        LocalDateTime originalLastUpdatedAt = existingBooking.getLastUpdatedAt();
+
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(existingBooking));
+        when(bookingRepository.save(existingBooking)).thenReturn(existingBooking);
+
+        BookingRequest updatedBooking = bookingService.updateBookingStatus(1L, BookingStatus.COMPLETED);
+
+        assertEquals(BookingStatus.COMPLETED, updatedBooking.getStatus());
+        assertNotNull(updatedBooking.getLastUpdatedAt());
+        assertTrue(updatedBooking.getLastUpdatedAt().isAfter(originalLastUpdatedAt));
+
+        verify(bookingRepository).findById(1L);
+        verify(bookingRepository).save(existingBooking);
+    }
+
+    @Test
+    void whenUpdateBookingStatus_withNullStatus_thenThrowException() {
+        assertThrows(IllegalArgumentException.class, () ->
+                bookingService.updateBookingStatus(1L, null)
+        );
+
+        verify(bookingRepository, never()).findById(anyLong());
+        verify(bookingRepository, never()).save(any(BookingRequest.class));
+    }
+
+    @Test
+    void whenUpdateBookingStatus_withUnknownBooking_thenThrowEntityNotFound() {
+        when(bookingRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () ->
+                bookingService.updateBookingStatus(99L, BookingStatus.COMPLETED)
+        );
+
+        verify(bookingRepository).findById(99L);
         verify(bookingRepository, never()).save(any(BookingRequest.class));
     }
 }

@@ -1,11 +1,13 @@
 package pt.zeromonos.garbagecollection.controller;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import pt.zeromonos.garbagecollection.domain.BookingRequest;
 import pt.zeromonos.garbagecollection.dto.BookingRequestDTO;
+import pt.zeromonos.garbagecollection.dto.UpdateBookingStatusDTO;
 import pt.zeromonos.garbagecollection.service.BookingService;
 
 import java.util.List;
@@ -35,7 +37,7 @@ public class BookingController {
             return new ResponseEntity<>(createdBooking, HttpStatus.CREATED); // 201 Created
         } catch (IllegalArgumentException e) {
             // Se o serviço lançar uma excepção (e.g., município inválido), retornamos um erro
-            return new ResponseEntity<>(null, HttpStatus.BAD_REQUEST); // 400 Bad Request
+            return ResponseEntity.badRequest().build(); // 400 Bad Request
         }
     }
 
@@ -57,5 +59,18 @@ public class BookingController {
     public ResponseEntity<List<BookingRequest>> getBookingsForStaff(@PathVariable String municipality) {
         List<BookingRequest> bookings = bookingService.findBookingsByMunicipality(municipality);
         return new ResponseEntity<>(bookings, HttpStatus.OK);
+    }
+
+    @PatchMapping("/staff/{bookingId}/status")
+    public ResponseEntity<BookingRequest> updateBookingStatus(@PathVariable Long bookingId,
+                                                              @RequestBody UpdateBookingStatusDTO updateBookingStatusDTO) {
+        try {
+            BookingRequest updatedBooking = bookingService.updateBookingStatus(bookingId, updateBookingStatusDTO.getStatus());
+            return ResponseEntity.ok(updatedBooking);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

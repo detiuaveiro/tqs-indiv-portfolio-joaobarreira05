@@ -5,10 +5,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import pt.zeromonos.garbagecollection.domain.BookingRequest;
+import pt.zeromonos.garbagecollection.domain.BookingStatus;
 import pt.zeromonos.garbagecollection.dto.BookingRequestDTO;
 import pt.zeromonos.garbagecollection.repository.BookingRequestRepository;
 
+import jakarta.persistence.EntityNotFoundException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,5 +65,23 @@ public class BookingService {
 
     public List<BookingRequest> findBookingsByMunicipality(String municipality) {
         return bookingRepository.findByMunicipality(municipality);
+    }
+
+    public BookingRequest updateBookingStatus(Long bookingId, BookingStatus newStatus) {
+        Objects.requireNonNull(bookingId, "Booking id cannot be null");
+
+        if (newStatus == null) {
+            throw new IllegalArgumentException("Booking status cannot be null");
+        }
+
+        BookingRequest booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new EntityNotFoundException("Booking with id " + bookingId + " not found"));
+
+        booking.setStatus(newStatus);
+        booking.setLastUpdatedAt(LocalDateTime.now());
+
+        BookingRequest saved = bookingRepository.save(booking);
+        logger.info("Booking {} status updated to {}", saved.getBookingToken(), saved.getStatus());
+        return saved;
     }
 }

@@ -182,3 +182,126 @@ logging.level.org.springframework.web=DEBUG
 | C) Controller | `@WebMvcTest` | Só Controller (com mock service) | Rápido |
 | D) Integration (MockMvc) | `@SpringBootTest` | Toda a aplicação | Médio |
 | E) Integration (RestTemplate) | `@SpringBootTest` + servidor | Como cliente externo | Mais lento |
+
+---
+
+## 4.3 Respostas às Perguntas do Lab
+
+### @Mock vs @MockBean - Qual a diferença?
+
+| Característica | @Mock | @MockBean |
+|----------------|-------|-----------|
+| **Biblioteca** | Mockito puro | Spring Boot Test |
+| **Contexto Spring** | Não requer | Requer contexto Spring |
+| **Uso típico** | Unit tests sem Spring | Integration tests com Spring |
+| **Como funciona** | Cria um mock simples | Substitui bean no Application Context |
+| **Velocidade** | Muito rápido | Mais lento (carrega contexto) |
+
+**Exemplo @Mock** (unit test):
+```java
+@ExtendWith(MockitoExtension.class)
+class ServiceUnitTest {
+    @Mock
+    private Repository repository;  // Mock simples
+    
+    @InjectMocks
+    private ServiceImpl service;    // Injecta o mock
+}
+```
+
+**Exemplo @MockBean** (integration test):
+```java
+@WebMvcTest(Controller.class)
+class ControllerTest {
+    @MockBean
+    private Service service;  // Substitui no contexto Spring
+}
+```
+
+### Papel do application-integrationtest.properties
+
+Este ficheiro permite configurar um ambiente diferente especificamente para testes de integração:
+
+1. **Ativação**: Via `@TestPropertySource` ou `@ActiveProfiles("integrationtest")`
+2. **Uso típico**: Ligar a uma base de dados PostgreSQL real em vez do H2 em memória
+3. **Configurações comuns**:
+   - URL da base de dados real
+   - Credenciais de acesso
+   - Nível de logging mais detalhado
+   - DDL strategy (create-drop para limpar entre testes)
+
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/meals_db
+spring.jpa.hibernate.ddl-auto=create-drop
+logging.level.org.springframework.web=DEBUG
+```
+
+### Top-Down Approach e TDD
+
+**Pergunta**: Can a top-down approach help with TDD practice?
+
+**Sim, e de forma significativa!** A abordagem top-down complementa o TDD:
+
+1. **Começa pelos requisitos de utilizador** → Define os endpoints REST primeiro
+2. **Testes de Controller** → Define o contrato da API antes da implementação
+3. **Mock dos Services** → Permite testar Controller sem Service implementado
+4. **Depois implementa Services** → Com testes já definidos
+5. **Finalmente Repository** → Integração com base de dados
+
+**Vantagens:**
+- Foco na interface/contrato antes da implementação
+- Permite trabalho paralelo (frontend pode começar com mocks)
+- Identifica problemas de design cedo
+- Garante que a API é "testável" desde o início
+
+### Cenário de Aluguer de Automóveis
+
+**Requisito**: "Find a car that provides a suitable replacement for some given car"
+
+**Testes Recomendados**:
+
+| Tipo | Objetivo | Como Implementar |
+|------|----------|------------------|
+| **Unit Test** | Testar lógica de "similaridade" | `@ExtendWith(MockitoExtension)` no CarMatchingService |
+| **Repository Test** | Query para carros disponíveis | `@DataJpaTest` com findBySegmentAndMotorTypeAndAvailable |
+| **Controller Test** | Endpoint GET /api/cars/{id}/replacement | `@WebMvcTest` com MockBean |
+| **Integration Test** | Fluxo completo | `@SpringBootTest` com TestRestTemplate |
+
+```java
+// Service Unit Test - testar lógica de matching
+@Test
+void whenFindReplacement_thenReturnMatchingCar() {
+    Car original = new Car("BMW 320", "SEDAN", "DIESEL");
+    Car replacement = new Car("Audi A4", "SEDAN", "DIESEL");
+    
+    when(carRepository.findAvailableByCriteria("SEDAN", "DIESEL"))
+        .thenReturn(List.of(replacement));
+    
+    Car found = carService.findReplacement(original);
+    assertThat(found.getSegment()).isEqualTo("SEDAN");
+}
+```
+
+---
+
+## 4.4 REST Assured
+
+REST Assured é uma biblioteca Java para testar APIs REST com sintaxe BDD:
+
+```java
+given()
+    .contentType(ContentType.JSON)
+    .body("{\"studentId\":\"stu1\",\"serviceShift\":\"LUNCH\"}")
+.when()
+    .post("/api/bookings")
+.then()
+    .statusCode(200)
+    .body("token", hasLength(8));
+```
+
+**Vantagens sobre TestRestTemplate:**
+- Sintaxe mais fluente e legível
+- Assertions integradas
+- Suporte nativo para JSON Path
+- Melhor para documentação de testes
+
